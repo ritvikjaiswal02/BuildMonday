@@ -5,6 +5,7 @@ import {
   buildGitHubIssueUrl,
   buildIssueMarkdown,
   loadIntegrations,
+  parseGithubRepo,
   saveIntegrations,
 } from "@/lib/integrations";
 
@@ -23,7 +24,16 @@ export function SendToMenu({
   const [showGithubForm, setShowGithubForm] = useState(false);
   const [owner, setOwner] = useState("");
   const [repo, setRepo] = useState("");
+  const [formError, setFormError] = useState<string | null>(null);
+  const [savedRepo, setSavedRepo] = useState<{ owner: string; repo: string } | null>(null);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const cfg = loadIntegrations();
+    if (cfg.github?.owner && cfg.github?.repo) {
+      setSavedRepo({ owner: cfg.github.owner, repo: cfg.github.repo });
+    }
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -31,6 +41,7 @@ export function SendToMenu({
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setOpen(false);
         setShowGithubForm(false);
+        setFormError(null);
       }
     };
     document.addEventListener("mousedown", onDocClick);
@@ -43,6 +54,7 @@ export function SendToMenu({
   const close = () => {
     setOpen(false);
     setShowGithubForm(false);
+    setFormError(null);
   };
 
   const openGithub = (o: string, r: string) => {
@@ -53,20 +65,32 @@ export function SendToMenu({
   };
 
   const handleGithub = () => {
-    const cfg = loadIntegrations();
-    if (cfg.github?.owner && cfg.github?.repo) {
-      openGithub(cfg.github.owner, cfg.github.repo);
+    if (savedRepo) {
+      openGithub(savedRepo.owner, savedRepo.repo);
       return;
     }
     setShowGithubForm(true);
   };
 
+  const handleChangeRepo = () => {
+    setOwner(savedRepo?.owner ?? "");
+    setRepo(savedRepo?.repo ?? "");
+    setFormError(null);
+    setShowGithubForm(true);
+  };
+
   const submitGithubForm = () => {
-    const o = owner.trim();
-    const r = repo.trim();
-    if (!o || !r) return;
-    saveIntegrations({ github: { owner: o, repo: r } });
-    openGithub(o, r);
+    const parsed = parseGithubRepo(owner, repo);
+    if (!parsed) {
+      setFormError(
+        "Couldn't read that. Try owner + repo separately (e.g. acme + storefront), or paste a github.com URL into either field."
+      );
+      return;
+    }
+    saveIntegrations({ github: parsed });
+    setSavedRepo(parsed);
+    setFormError(null);
+    openGithub(parsed.owner, parsed.repo);
   };
 
   const copyAndOpen = async (destUrl: string, label: string) => {
@@ -101,8 +125,15 @@ export function SendToMenu({
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-white/90 transition hover:bg-white/[0.06]"
                 >
                   <span>GitHub Issue</span>
-                  <span className="text-[10px] uppercase tracking-wide text-emerald-300/80">
-                    One-click
+                  <span
+                    className={
+                      savedRepo
+                        ? "max-w-[140px] truncate text-[10px] text-indigo-300/90"
+                        : "text-[10px] uppercase tracking-wide text-emerald-300/80"
+                    }
+                    title={savedRepo ? `${savedRepo.owner}/${savedRepo.repo}` : undefined}
+                  >
+                    {savedRepo ? `→ ${savedRepo.owner}/${savedRepo.repo}` : "One-click"}
                   </span>
                 </button>
               </li>
@@ -130,8 +161,24 @@ export function SendToMenu({
                   </span>
                 </button>
               </li>
-              <li className="border-t border-white/10 px-3 py-2 text-[11px] leading-snug text-white/40">
-                GitHub deep-links the full draft. Linear &amp; Notion don't support URL prefill — we copy markdown and open the tab.
+              <li className="space-y-1 border-t border-white/10 px-3 py-2 text-[11px] leading-snug text-white/40">
+                <div>
+                  GitHub deep-links the full draft. Linear &amp; Notion don't support URL prefill — we copy markdown and open the tab.
+                </div>
+                {savedRepo && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-white/50">
+                      Saved: <code className="rounded bg-white/10 px-1 text-white/70">{savedRepo.owner}/{savedRepo.repo}</code>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleChangeRepo}
+                      className="shrink-0 font-medium text-indigo-300 hover:text-indigo-200"
+                    >
+                      Change
+                    </button>
+                  </div>
+                )}
               </li>
             </ul>
           ) : (
@@ -140,12 +187,15 @@ export function SendToMenu({
                 GitHub repo
               </div>
               <div className="text-[11px] leading-snug text-white/50">
-                Format <code className="rounded bg-white/10 px-1">owner/repo</code>. Saved for next time.
+                Format <code className="rounded bg-white/10 px-1">owner/repo</code>, or paste a github.com URL. Saved for next time.
               </div>
               <div className="flex items-center gap-1">
                 <input
                   value={owner}
-                  onChange={(e) => setOwner(e.target.value)}
+                  onChange={(e) => {
+                    setOwner(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   placeholder="owner"
                   className="w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-xs text-white outline-none focus:border-indigo-500/50"
                   autoFocus
@@ -153,7 +203,10 @@ export function SendToMenu({
                 <span className="text-white/40">/</span>
                 <input
                   value={repo}
-                  onChange={(e) => setRepo(e.target.value)}
+                  onChange={(e) => {
+                    setRepo(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   placeholder="repo"
                   className="w-full rounded border border-white/15 bg-black/30 px-2 py-1 text-xs text-white outline-none focus:border-indigo-500/50"
                   onKeyDown={(e) => {
@@ -161,6 +214,11 @@ export function SendToMenu({
                   }}
                 />
               </div>
+              {formError && (
+                <div className="rounded border border-red-500/30 bg-red-500/10 px-2 py-1 text-[11px] leading-snug text-red-200">
+                  {formError}
+                </div>
+              )}
               <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
