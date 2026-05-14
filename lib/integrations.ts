@@ -4,6 +4,7 @@ const KEY = "buildmonday:integrations";
 
 export interface IntegrationsConfig {
   github?: { owner: string; repo: string };
+  linear?: { workspace: string };
 }
 
 export function loadIntegrations(): IntegrationsConfig {
@@ -113,6 +114,19 @@ export function parseGithubRepo(
     return { owner: o, repo: r };
   }
   return null;
+}
+
+export function parseLinearWorkspace(raw: string): string | null {
+  const trimmed = raw.trim().replace(/^@/, "");
+  if (!trimmed) return null;
+  const urlMatch = trimmed.match(/linear\.app\/([A-Za-z0-9_-]+)/i);
+  if (urlMatch) return urlMatch[1].toLowerCase();
+  if (/^[A-Za-z0-9_-]+$/.test(trimmed)) return trimmed.toLowerCase();
+  return null;
+}
+
+export function buildLinearWorkspaceUrl(workspace: string): string {
+  return `https://linear.app/${encodeURIComponent(workspace)}`;
 }
 
 const GITHUB_BODY_LIMIT = 6000;
