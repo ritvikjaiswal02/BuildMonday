@@ -8,6 +8,7 @@ import {
   parseGithubRepo,
   saveIntegrations,
 } from "@/lib/integrations";
+import { slugify } from "@/lib/storage";
 
 export function SendToMenu({
   issue,
@@ -93,13 +94,38 @@ export function SendToMenu({
     openGithub(parsed.owner, parsed.repo);
   };
 
+  const pasteShortcut =
+    typeof navigator !== "undefined" && /Mac|iPhone|iPad/i.test(navigator.platform)
+      ? "⌘V"
+      : "Ctrl+V";
+
   const copyAndOpen = async (destUrl: string, label: string) => {
     try {
       await navigator.clipboard.writeText(fullMarkdown);
       window.open(destUrl, "_blank", "noopener");
-      onNotify(`Markdown copied · paste into ${label}`);
+      onNotify(`Markdown copied · paste into ${label} with ${pasteShortcut}`);
     } catch {
       onNotify("Copy failed — try Copy PRD instead");
+    }
+    close();
+  };
+
+  const downloadAndOpen = (destUrl: string, label: string) => {
+    try {
+      const filename = `buildmonday-${slugify(issue.title) || "issue"}.md`;
+      const blob = new Blob([fullMarkdown], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      window.open(destUrl, "_blank", "noopener");
+      onNotify(`${filename} downloaded · drag into a ${label} page to import`);
+    } catch {
+      onNotify("Download failed — try Copy PRD instead");
     }
     close();
   };
@@ -152,18 +178,18 @@ export function SendToMenu({
               <li>
                 <button
                   type="button"
-                  onClick={() => copyAndOpen("https://www.notion.so/new", "Notion")}
+                  onClick={() => downloadAndOpen("https://www.notion.so/new", "Notion")}
                   className="flex w-full items-center justify-between px-3 py-2 text-left text-white/90 transition hover:bg-white/[0.06]"
                 >
                   <span>Notion</span>
                   <span className="text-[10px] uppercase tracking-wide text-white/40">
-                    Copy + open
+                    Download .md + open
                   </span>
                 </button>
               </li>
               <li className="space-y-1 border-t border-white/10 px-3 py-2 text-[11px] leading-snug text-white/40">
                 <div>
-                  GitHub deep-links the full draft. Linear &amp; Notion don't support URL prefill — we copy markdown and open the tab.
+                  GitHub deep-links the full draft. Linear copies markdown — paste with {pasteShortcut}. Notion gets a <code className="rounded bg-white/10 px-1">.md</code> file you drag onto a new page.
                 </div>
                 {savedRepo && (
                   <div className="flex items-center justify-between gap-2">
