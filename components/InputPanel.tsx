@@ -75,15 +75,6 @@ export function InputPanel({
 
   return (
     <section className="space-y-6">
-      <div className="space-y-3">
-        <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-          What should engineering build Monday?
-        </h1>
-        <p className="text-base text-white/65">
-          Paste raw complaints, or pull live App Store reviews for any app.
-        </p>
-      </div>
-
       <div className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] p-1">
         <button
           type="button"
@@ -149,15 +140,28 @@ export function InputPanel({
         </div>
       )}
 
-      <textarea
-        value={text}
-        onChange={(e) => {
-          setText(e.target.value);
-          if (fetchStatus) setFetchStatus(null);
-        }}
-        placeholder="Paste complaints here... App Store reviews, support tickets, angry tweets — anything works."
-        className="min-h-[200px] w-full resize-y rounded-xl border border-white/10 bg-[#111113] p-4 text-sm text-white placeholder-white/30 outline-none ring-0 transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-      />
+      <div className="group relative">
+        {/* Animated gradient halo on focus-within */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -inset-px rounded-xl opacity-0 transition duration-500 group-focus-within:opacity-100"
+          style={{
+            background:
+              "linear-gradient(120deg, rgba(99,102,241,0.55), rgba(168,85,247,0.45), rgba(245,158,11,0.45))",
+            filter: "blur(14px)",
+            zIndex: -1,
+          }}
+        />
+        <textarea
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            if (fetchStatus) setFetchStatus(null);
+          }}
+          placeholder="Paste complaints here... App Store reviews, support tickets, angry tweets — anything works."
+          className="relative min-h-[200px] w-full resize-y rounded-xl border border-white/10 bg-[#111113]/95 p-4 text-sm text-white placeholder-white/30 outline-none ring-0 backdrop-blur transition focus:border-indigo-400/60 focus:ring-2 focus:ring-indigo-500/25"
+        />
+      </div>
 
       {fetchStatus && (
         <div className="-mt-3 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-200">
@@ -206,12 +210,28 @@ export function InputPanel({
           type="button"
           onClick={onAnalyze}
           disabled={disabled || text.trim().length === 0}
-          className="rounded-lg bg-indigo-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="group relative inline-flex cursor-pointer items-center gap-2 overflow-hidden rounded-lg bg-gradient-to-b from-indigo-400 via-indigo-500 to-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-[0_8px_28px_-8px_rgba(99,102,241,0.7)] transition hover:scale-[1.02] hover:shadow-[0_12px_36px_-8px_rgba(99,102,241,0.85)] active:scale-95 disabled:cursor-not-allowed disabled:from-white/10 disabled:via-white/10 disabled:to-white/10 disabled:text-white/40 disabled:shadow-none disabled:hover:scale-100"
         >
-          Analyze Complaints →
+          {/* Glow halo behind button */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -inset-1 -z-10 rounded-lg bg-gradient-to-r from-indigo-400/50 via-purple-400/50 to-amber-300/40 opacity-0 blur-xl transition duration-500 group-hover:opacity-100 group-disabled:opacity-0"
+          />
+          {/* Diagonal shimmer sweep */}
+          <span
+            aria-hidden
+            className="pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/25 to-transparent transition-transform duration-700 group-hover:translate-x-full group-disabled:hidden"
+          />
+          <span className="relative">Analyze Complaints</span>
+          <span
+            aria-hidden
+            className="relative transition-transform duration-300 group-hover:translate-x-1"
+          >
+            →
+          </span>
         </button>
         <span className="text-xs text-white/40">
-          Powered by Gemini 2.5 Flash. No data stored.
+          No data stored · runs in seconds
         </span>
       </div>
     </section>
