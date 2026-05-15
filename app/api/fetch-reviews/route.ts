@@ -39,6 +39,13 @@ interface HackerNewsSource extends ParsedSource {
 type DetectedSource = AppStoreSource | RedditSource | TrustpilotSource | HackerNewsSource;
 
 const UA = "BuildMonday/1.0 (+https://buildmonday.local)";
+const BROWSER_UA =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
+function extractRedditTimeFilter(input: string): string {
+  const m = input.match(/[?&]t=(hour|day|week|month|year|all)\b/i);
+  return m ? m[1].toLowerCase() : "month";
+}
 
 function detectSource(input: string): DetectedSource | null {
   const t = input.trim();
@@ -72,10 +79,11 @@ function detectSource(input: string): DetectedSource | null {
 
   const redditSubUrl = t.match(/reddit\.com\/r\/([^/?#\s]+)/i);
   if (redditSubUrl) {
+    const tf = extractRedditTimeFilter(t);
     return {
       source: "reddit",
       kind: "subreddit",
-      path: `/r/${redditSubUrl[1]}/top.json?t=month&limit=30`,
+      path: `/r/${redditSubUrl[1]}/top.json?t=${tf}&limit=30`,
       label: `r/${redditSubUrl[1]}`,
     };
   }
@@ -156,43 +164,45 @@ interface RedditCommentListing {
   };
 }
 
-async function fetchReddit(s: RedditSource) {
-  const url = s.kind === "thread"
-    ? `https://www.reddit.com${s.path}.json?limit=200&raw_json=1`
-    : `https://www.reddit.com${s.path}&raw_json=1`;
-  const res = await fetch(url, { headers: { "User-Agent": UA }, cache: "no-store" });
-  if (!res.ok) {
-    throw new Error(
-      `Reddit returned ${res.status}. They sometimes block server-side requests; try pasting another thread or use the Paste Text tab.`
-    );
-  }
+const cleanRedditText = (t: string) =>
+  t
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/\n+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+async function fetchRedditDirect(s: RedditSource): Promise<string[]> {
+  const url =
+    s.kind === "thread"
+      ? `https://www.reddit.com${s.path}.json?limit=200&raw_json=1`
+      : `https://www.reddit.com${s.path}&raw_json=1`;
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "application/json",
+      "Accept-Language": "en-US,en;q=0.9",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Reddit direct returned ${res.status}`);
   const data = await res.json();
-
-  const cleanText = (t: string) =>
-    t
-      .replace(/\r\n/g, "\n")
-      .replace(/\n{3,}/g, "\n\n")
-      .replace(/\n+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-  let texts: string[] = [];
-
+  const texts: string[] = [];
   if (s.kind === "thread" && Array.isArray(data) && data.length >= 2) {
     const [postBlock, commentBlock] = data as [RedditPostListing, RedditCommentListing];
     const post = postBlock?.data?.children?.[0]?.data;
     if (post?.selftext && post.selftext.length > 0) {
       const head = post.title ? `${post.title}. ` : "";
-      texts.push(cleanText(head + post.selftext));
+      texts.push(cleanRedditText(head + post.selftext));
     } else if (post?.title) {
-      texts.push(cleanText(post.title));
+      texts.push(cleanRedditText(post.title));
     }
     const comments = commentBlock?.data?.children ?? [];
     for (const c of comments) {
       if (c.kind !== "t1") continue;
       const body = c.data?.body;
       if (!body || body === "[deleted]" || body === "[removed]") continue;
-      texts.push(cleanText(body));
+      texts.push(cleanRedditText(body));
     }
   } else if (s.kind === "subreddit") {
     const listing = data as RedditPostListing;
@@ -203,7 +213,65 @@ async function fetchReddit(s: RedditSource) {
       const title = d.title?.trim() ?? "";
       const body = d.selftext?.trim() ?? "";
       const combined = body ? `${title}. ${body}` : title;
-      if (combined.length > 20) texts.push(cleanText(combined));
+      if (combined.length > 20) texts.push(cleanRedditText(combined));
+    }
+  }
+  return texts;
+}
+
+async function fetchRedditViaReader(s: RedditSource): Promise<string[]> {
+  // Reddit blocks Vercel datacenter IPs. Route through r.jina.ai which fetches
+  // public HTML and returns plain-text rendering. Free, no auth.
+  const htmlPath =
+    s.kind === "thread"
+      ? s.path
+      : s.path.replace(/\.json/, "/").replace(/&limit=\d+/g, "");
+  const htmlUrl = `https://www.reddit.com${htmlPath}`;
+  const proxyUrl = `https://r.jina.ai/${htmlUrl}`;
+  const res = await fetch(proxyUrl, {
+    headers: {
+      "User-Agent": BROWSER_UA,
+      Accept: "text/plain",
+      "X-Return-Format": "text",
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Reader proxy returned ${res.status}`);
+  const raw = await res.text();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const rawLine of raw.split(/\n+/)) {
+    const line = rawLine.trim();
+    if (line.length < 30 || line.length > 1500) continue;
+    if (/^[#=*_>\-\[!|]/.test(line)) continue; // markdown structural
+    if (/^https?:\/\//.test(line)) continue;
+    if (/^\d+\s+(comments?|points?|upvotes?)\b/i.test(line)) continue;
+    if (/^(posted by|submitted by|by\s+u\/|share|save|report|hide|reply)\b/i.test(line))
+      continue;
+    if (/^URL Source:|^Markdown Content:|^Title:/i.test(line)) continue;
+    const key = line.toLowerCase().slice(0, 90);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(cleanRedditText(line));
+  }
+  return out;
+}
+
+async function fetchReddit(s: RedditSource) {
+  let texts: string[] = [];
+  let proxyUsed = false;
+  try {
+    texts = await fetchRedditDirect(s);
+  } catch (e) {
+    console.warn("Reddit direct fetch failed, falling back to reader proxy:", e);
+    try {
+      texts = await fetchRedditViaReader(s);
+      proxyUsed = true;
+    } catch (e2) {
+      console.error("Reddit reader-proxy fallback also failed:", e2);
+      throw new Error(
+        "Reddit is blocking our server right now. Open the thread in a browser, copy the text, and paste it in the Paste Text tab instead."
+      );
     }
   }
 
@@ -213,7 +281,11 @@ async function fetchReddit(s: RedditSource) {
       `No usable posts/comments found in ${s.label}. Try a different thread or a busier subreddit.`
     );
   }
-  return { reviews: texts, totalFetched: texts.length, sourceLabel: s.label };
+  return {
+    reviews: texts,
+    totalFetched: texts.length,
+    sourceLabel: proxyUsed ? `${s.label} (via reader proxy)` : s.label,
+  };
 }
 
 interface TpReview {
