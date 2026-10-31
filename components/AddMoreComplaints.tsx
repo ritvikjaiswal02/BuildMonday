@@ -1,81 +1,98 @@
 "use client";
-import { useState } from "react";
 
+import * as React from "react";
+import { ListPlus, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { countComplaints } from "@/components/app/analyzer";
+import { pluralize } from "@/lib/utils";
+
+/**
+ * Appends new complaints to the current batch and re-runs the analysis.
+ * Collapsed by default so the results stay the focus.
+ */
 export function AddMoreComplaints({
   onSubmit,
   disabled,
+  currentCount,
 }: {
-  onSubmit: (newComplaints: string) => void;
+  onSubmit: (complaints: string) => void;
   disabled: boolean;
+  currentCount?: number;
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const [draft, setDraft] = useState("");
-
-  const lineCount = draft
-    .split(/\n+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0).length;
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const id = React.useId();
+  const count = countComplaints(draft);
 
   const submit = () => {
-    if (!draft.trim()) return;
+    if (count === 0 || disabled) return;
     onSubmit(draft);
     setDraft("");
-    setExpanded(false);
+    setOpen(false);
   };
 
-  return (
-    <div className="mt-6 rounded-xl border border-white/10 bg-[#0e0e10]">
-      {!expanded ? (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="flex w-full items-center justify-between px-4 py-3 text-left text-sm text-white/70 transition hover:bg-white/[0.03] hover:text-white"
-        >
-          <span>+ Add more complaints to this analysis</span>
-          <span className="text-xs text-white/30">Re-runs the full pipeline</span>
-        </button>
-      ) : (
-        <div className="space-y-3 p-4">
-          <div className="flex items-center justify-between">
-            <label className="text-sm font-medium text-white/80">
-              Add more complaints
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setExpanded(false);
-                setDraft("");
-              }}
-              className="text-xs text-white/40 hover:text-white/70"
-            >
-              Cancel
-            </button>
-          </div>
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Paste additional complaints, one per line. Will be merged with the existing batch and re-analyzed."
-            className="min-h-[120px] w-full resize-y rounded-lg border border-white/10 bg-black/30 p-3 text-sm text-white placeholder-white/30 outline-none transition focus:border-indigo-500/50 focus:ring-2 focus:ring-indigo-500/20"
-            disabled={disabled}
-          />
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-xs text-white/50">
-              {lineCount} new complaint{lineCount === 1 ? "" : "s"}
-              <span className="ml-2 text-amber-300/70">
-                · Statuses will reset on re-analyze
-              </span>
-            </span>
-            <button
-              type="button"
-              onClick={submit}
-              disabled={disabled || lineCount === 0}
-              className="rounded-md bg-indigo-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {disabled ? "Re-analyzing..." : "Add to Analysis →"}
-            </button>
-          </div>
+  if (!open) {
+    return (
+      <div className="flex flex-col gap-3 rounded-lg border border-dashed border-line-strong bg-surface px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <p className="text-sm font-medium text-ink">Got more feedback?</p>
+          <p className="text-sm text-ink-muted">
+            Add it to this batch and re-rank everything together. Statuses reset after the new analysis.
+          </p>
         </div>
-      )}
+        <Button leftIcon={<ListPlus aria-hidden />} onClick={() => setOpen(true)} disabled={disabled}>
+          Add more complaints
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-line bg-surface p-4 shadow-xs sm:p-5">
+      <label htmlFor={id} className="text-sm font-medium text-ink">
+        More complaints, one per line
+      </label>
+      <p id={`${id}-hint`} className="mt-0.5 text-xs text-ink-muted">
+        {typeof currentCount === "number"
+          ? `They are added to the ${pluralize(currentCount, "complaint")} already analyzed.`
+          : "They are added to the complaints already analyzed."}
+      </p>
+      <Textarea
+        id={id}
+        aria-describedby={`${id}-hint`}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+            e.preventDefault();
+            submit();
+          }
+        }}
+        rows={5}
+        autoFocus
+        placeholder="The export button does nothing on Safari."
+        className="mt-3"
+      />
+      <div className="mt-3 flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-end">
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setOpen(false);
+            setDraft("");
+          }}
+        >
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          leftIcon={<RefreshCw aria-hidden />}
+          onClick={submit}
+          disabled={disabled || count === 0}
+        >
+          {count > 0 ? `Re-analyze with ${pluralize(count, "more complaint")}` : "Re-analyze"}
+        </Button>
+      </div>
     </div>
   );
 }

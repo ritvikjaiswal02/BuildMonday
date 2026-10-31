@@ -2,27 +2,300 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: dark;
+/*
+ * BuildMonday design tokens (docs/BUILD_CONTRACTS.md section 8.2).
+ * Values are RGB channel triplets so Tailwind alpha modifiers work:
+ * `bg-brand/10` -> rgb(var(--brand) / 0.1).
+ * Light is the default; `<html class="dark">` switches to dark.
+ */
+@layer base {
+  :root {
+    color-scheme: light;
+
+    --canvas: 246 247 249;
+    --surface: 255 255 255;
+    --sunken: 238 240 243;
+    --line: 226 229 234;
+    --line-strong: 201 207 216;
+
+    --ink: 15 20 25;
+    --ink-secondary: 64 72 84;
+    --ink-muted: 105 113 126;
+    --ink-faint: 154 161 172;
+
+    --brand: 35 64 217;
+    --brand-hover: 27 51 184;
+    --brand-soft: 236 239 254;
+    --brand-ink: 26 44 158;
+    --on-brand: 255 255 255;
+
+    --danger: 200 37 27;
+    --danger-soft: 253 236 234;
+    --danger-ink: 154 28 20;
+    --warning: 178 94 9;
+    --warning-soft: 254 243 226;
+    --warning-ink: 122 63 5;
+    --success: 11 122 75;
+    --success-soft: 230 246 238;
+    --success-ink: 7 92 56;
+
+    --source-appstore: 35 64 217;
+    --source-playstore: 14 138 125;
+    --source-reddit: 212 86 28;
+    --source-hn: 178 94 9;
+    --source-trustpilot: 11 122 75;
+    --source-widget: 112 72 232;
+    --source-extension: 91 100 114;
+    --source-manual: 154 161 172;
+
+    --shadow-color: 15 20 25;
+
+    --topbar-height: 56px;
+    --sidebar-width: 240px;
+  }
+
+  .dark {
+    color-scheme: dark;
+
+    --canvas: 13 15 19;
+    --surface: 21 24 30;
+    --sunken: 16 19 24;
+    --line: 37 42 50;
+    --line-strong: 54 60 71;
+
+    --ink: 236 238 241;
+    --ink-secondary: 182 188 198;
+    --ink-muted: 138 145 157;
+    --ink-faint: 93 100 112;
+
+    --brand: 113 137 255;
+    --brand-hover: 140 159 255;
+    --brand-soft: 26 33 80;
+    --brand-ink: 186 198 255;
+    --on-brand: 13 15 19;
+
+    --danger: 244 112 103;
+    --danger-soft: 58 23 21;
+    --danger-ink: 255 179 172;
+    --warning: 242 169 59;
+    --warning-soft: 58 42 14;
+    --warning-ink: 255 213 151;
+    --success: 79 203 141;
+    --success-soft: 15 46 32;
+    --success-ink: 166 235 199;
+
+    --source-appstore: 113 137 255;
+    --source-playstore: 60 199 182;
+    --source-reddit: 242 138 85;
+    --source-hn: 242 169 59;
+    --source-trustpilot: 79 203 141;
+    --source-widget: 165 139 255;
+    --source-extension: 154 163 178;
+    --source-manual: 107 114 128;
+
+    --shadow-color: 0 0 0;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-canvas font-sans text-base text-ink antialiased;
+    font-feature-settings: "ss01" on, "cv11" on;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-display text-ink;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  ::selection {
+    background: rgb(var(--brand) / 0.18);
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* Native form controls pick up the theme. */
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgb(var(--ink-muted));
+    opacity: 1;
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    @apply font-mono;
+  }
 }
 
-html,
-body {
-  background-color: #0a0a0a;
-  color: #e5e7eb;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  -webkit-font-smoothing: antialiased;
+@layer components {
+  /* Every interactive primitive applies this (8.4). */
+  .focus-ring {
+    @apply outline-none focus-visible:ring-2 focus-visible:ring-brand/60 focus-visible:ring-offset-2 focus-visible:ring-offset-surface;
+  }
+
+  /* Page gutters and containers (8.4). */
+  .container-app {
+    @apply mx-auto w-full max-w-app px-4 sm:px-6 lg:px-8;
+  }
+
+  .container-form {
+    @apply mx-auto w-full max-w-form px-4 sm:px-6 lg:px-8;
+  }
+
+  .container-marketing {
+    @apply mx-auto w-full max-w-marketing px-4 sm:px-6 lg:px-8;
+  }
+
+  /* Skeleton fill with a quiet shimmer. */
+  .skeleton {
+    background-color: rgb(var(--sunken));
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--sunken)) 0%,
+      rgb(var(--line) / 0.6) 50%,
+      rgb(var(--sunken)) 100%
+    );
+    background-size: 200% 100%;
+    @apply animate-shimmer;
+  }
+
+  /* Rank numbers in lists: the one memorable element. */
+  .rank-number {
+    @apply font-display text-2xl font-semibold tabular-nums text-ink;
+  }
+
+  /* Rendered Markdown (PRDs, chat answers, digest previews). */
+  .prose-bm {
+    @apply max-w-[72ch] text-base text-ink-secondary;
+  }
+  .prose-bm > * + * {
+    @apply mt-3;
+  }
+  .prose-bm h1,
+  .prose-bm h2,
+  .prose-bm h3 {
+    @apply mt-6 font-display font-semibold text-ink first:mt-0;
+  }
+  .prose-bm h1 {
+    @apply text-xl;
+  }
+  .prose-bm h2 {
+    @apply text-lg;
+  }
+  .prose-bm h3 {
+    @apply text-base;
+  }
+  .prose-bm a {
+    @apply text-brand underline decoration-brand/40 underline-offset-2 hover:decoration-brand;
+  }
+  .prose-bm strong {
+    @apply font-semibold text-ink;
+  }
+  .prose-bm ul {
+    @apply list-disc space-y-1 pl-5;
+  }
+  .prose-bm ol {
+    @apply list-decimal space-y-1 pl-5;
+  }
+  .prose-bm li::marker {
+    color: rgb(var(--ink-faint));
+  }
+  .prose-bm blockquote {
+    @apply border-l-2 border-line-strong pl-4 text-ink-secondary;
+  }
+  .prose-bm code {
+    @apply rounded-sm bg-sunken px-1 py-0.5 text-[0.9em] text-ink;
+  }
+  .prose-bm pre {
+    @apply overflow-x-auto rounded-md border border-line bg-sunken p-3 text-sm;
+  }
+  .prose-bm pre code {
+    @apply bg-transparent p-0;
+  }
+  .prose-bm hr {
+    @apply my-6 border-line;
+  }
 }
 
-::selection {
-  background: rgba(99, 102, 241, 0.35);
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line-strong)) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: rgb(var(--line-strong));
+    border-radius: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Sticky topbar: solid surface at 92%, no blur (8.1). */
+  .bg-topbar {
+    background-color: rgb(var(--surface) / 0.92);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-pretty {
+    text-wrap: pretty;
+  }
 }
 
-.scrollbar-thin::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-.scrollbar-thin::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 4px;
+/* Respect reduced motion: no shimmer, pulse, layout or entrance animations. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .skeleton {
+    animation: none;
+    background-image: none;
+  }
+  /* Spinners stay: they are the only signal that work is happening. */
+  .animate-spin {
+    animation-duration: 1.5s !important;
+    animation-iteration-count: infinite !important;
+  }
 }

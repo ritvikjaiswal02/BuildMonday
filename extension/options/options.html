@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BuildMonday extension settings</title>
+    <link rel="stylesheet" href="../ui/base.css" />
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" x2="12" y1="8" y2="12" />
+        <line x1="12" x2="12.01" y1="16" y2="16" />
+      </symbol>
+      <symbol id="i-eye" viewBox="0 0 24 24">
+        <path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-external" viewBox="0 0 24 24">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </symbol>
+    </svg>
+
+    <header class="bar">
+      <div class="wrap bar-inner">
+        <span class="brand-row"><img src="../icons/icon32.png" alt="" />BuildMonday</span>
+        <span class="hint">Extension settings</span>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="page-head">
+        <h1>Connect the extension</h1>
+        <p class="lead">
+          Clip reviews and feedback from any page into your BuildMonday inbox. They are grouped into issues on the next run.
+        </p>
+      </div>
+
+      <section class="panel" aria-labelledby="connection-title">
+        <header class="panel-head">
+          <h2 id="connection-title">Connection</h2>
+          <p class="hint">
+            Create a token in BuildMonday under
+            <a id="token-link" target="_blank" rel="noopener">Extension and widget</a>, then paste it here.
+          </p>
+        </header>
+
+        <div id="connected" class="panel-body" hidden>
+          <div class="callout success">
+            <svg class="icon" aria-hidden="true"><use href="#i-check" /></svg>
+            <div>
+              <p class="callout-title" id="connected-title">Connected</p>
+              <p id="connected-detail"></p>
+            </div>
+          </div>
+          <dl class="facts">
+            <div><dt>Server</dt><dd id="connected-server"></dd></div>
+            <div><dt>Token</dt><dd id="connected-token" class="mono"></dd></div>
+            <div><dt>Plan</dt><dd id="connected-plan"></dd></div>
+          </dl>
+          <div class="row">
+            <button id="disconnect" type="button" class="btn btn-danger-text">Disconnect</button>
+          </div>
+        </div>
+
+        <form id="connect-form" class="panel-body" novalidate>
+          <div class="field">
+            <label class="label" for="server">Server address</label>
+            <input id="server" class="input" type="url" inputmode="url" autocomplete="url" spellcheck="false" aria-describedby="server-hint server-error" />
+            <p class="hint" id="server-hint">Where your BuildMonday workspace lives. Leave it as is unless you run your own copy.</p>
+            <p class="error" id="server-error" hidden></p>
+          </div>
+          <div class="field">
+            <label class="label" for="token">Token</label>
+            <div class="with-action">
+              <input id="token" class="input mono" type="password" autocomplete="off" spellcheck="false" placeholder="bm_ext_..." aria-describedby="token-hint token-error" />
+              <button id="toggle-token" type="button" class="btn btn-ghost btn-icon" aria-label="Show token" aria-pressed="false">
+                <svg class="icon" aria-hidden="true"><use href="#i-eye" /></svg>
+              </button>
+            </div>
+            <p class="hint" id="token-hint">Stored only in this browser. You can revoke it in BuildMonday at any time.</p>
+            <p class="error" id="token-error" hidden></p>
+          </div>
+          <div id="connect-status" role="status" aria-live="polite"></div>
+          <div class="row">
+            <button id="connect" type="submit" class="btn btn-primary"><span class="btn-label">Connect</span></button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="defaults" aria-labelledby="defaults-title" hidden>
+        <header class="panel-head">
+          <h2 id="defaults-title">Defaults</h2>
+          <p class="hint">Used by the right-click menu and the keyboard shortcut. The popup lets you change the product each time.</p>
+        </header>
+        <div class="panel-body">
+          <div class="field">
+            <label class="label" for="product">Save clips to</label>
+            <select id="product" class="select"></select>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="lowstar" />
+            <span>
+              <span class="label">Only capture 1 to 3 star reviews</span><br />
+              <span class="hint">On review pages that show ratings, skip 4 and 5 star reviews. Pages without ratings are captured in full.</span>
+            </span>
+          </label>
+          <p id="defaults-status" class="saved" role="status" aria-live="polite"></p>
+        </div>
+      </section>
+
+      <section class="panel" aria-labelledby="use-title">
+        <header class="panel-head">
+          <h2 id="use-title">How to clip</h2>
+        </header>
+        <ol class="steps">
+          <li>
+            <p class="label">Clip a selection</p>
+            <p class="hint">Select feedback on any page, including your support inbox, then right-click and choose Clip to BuildMonday. Or press <kbd>Alt</kbd> <kbd>Shift</kbd> <kbd>B</kbd>.</p>
+          </li>
+          <li>
+            <p class="label">Capture a review page</p>
+            <p class="hint">On Google Play, the App Store, Reddit, Hacker News, Trustpilot, G2, Product Hunt or X, open the extension and choose Capture. Up to 100 reviews go in at once.</p>
+          </li>
+          <li>
+            <p class="label">Change the shortcut</p>
+            <p class="hint">Open <span class="mono">chrome://extensions/shortcuts</span> in a new tab.</p>
+          </li>
+        </ol>
+      </section>
+
+      <p class="privacy hint">
+        The extension reads a page only when you clip or capture, and sends only what you clip to your BuildMonday server. Nothing else leaves your browser.
+      </p>
+    </main>
+
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

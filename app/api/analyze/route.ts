@@ -1,146 +1,97 @@
-import { NextResponse } from "next/server";
-import { callGeminiJson } from "@/lib/gemini";
-import { embedBatch, cosineSimilarity } from "@/lib/embeddings";
-import { PASS_1_PROMPT, PASS_2_PROMPT } from "@/lib/prompts";
-import type {
-  AnalysisDiff,
-  Issue,
-  IssueDiff,
-  ResolvedIssue,
-  Source,
-  TaggedComplaint,
-} from "@/lib/types";
+import { z } from "zod";
+import { HttpError, json, parseJson, withRoute } from "@/lib/auth/http";
+import { analyzeItems, MAX_ANALYZE_ITEMS } from "@/lib/monitor/analyze";
+import { computeDiff } from "@/lib/monitor/diff";
+import { isSource, type AnalysisDiff, type Issue, type Source } from "@/lib/types";
+import { limitFreeTool } from "./_lib/anonymous";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+export const maxDuration = 120;
 
-const SIMILARITY_THRESHOLD = 0.72;
+/** The free analyzer takes up to this many complaints per request. */
+const MAX_FREE_ITEMS = 300;
+const MAX_BYTES = 256 * 1024;
+const ANALYSES_PER_DAY = 10;
 
-function issueSignature(i: Issue): string {
-  const head = i.title ?? "";
-  const ev = (i.evidence ?? []).slice(0, 3).join(" ");
-  return `${head}. ${ev}`.slice(0, 1500);
-}
+const bodySchema = z.object({
+  complaints: z.string().max(MAX_BYTES).optional(),
+  complaintsTagged: z
+    .array(z.object({ text: z.string(), source: z.string().max(40).optional().nullable() }))
+    .max(5000)
+    .optional(),
+  // History comes from the browser's localStorage and may be from an older
+  // version of the app, so it is sanitised rather than strictly validated.
+  priorIssues: z.array(z.unknown()).max(200).optional(),
+  priorRunDate: z.string().max(100).optional(),
+});
 
-async function computeDiff(
-  current: Issue[],
-  prior: Issue[],
-  priorRunDate: string
-): Promise<AnalysisDiff> {
-  if (prior.length === 0 || current.length === 0) {
-    return {
-      perIssue: current.map(() => ({ category: "new" as const })),
-      resolved: [],
-      priorRunDate,
-    };
-  }
-
-  const currentSigs = current.map(issueSignature);
-  const priorSigs = prior.map(issueSignature);
-
-  const allEmbeds = await embedBatch([...currentSigs, ...priorSigs]);
-  const currentEmbeds = allEmbeds.slice(0, currentSigs.length);
-  const priorEmbeds = allEmbeds.slice(currentSigs.length);
-
-  const matchedPrior = new Set<number>();
-  const perIssue: IssueDiff[] = current.map((cur, ci) => {
-    let bestPriorIdx = -1;
-    let bestSim = 0;
-    for (let pi = 0; pi < prior.length; pi++) {
-      if (matchedPrior.has(pi)) continue;
-      const sim = cosineSimilarity(currentEmbeds[ci], priorEmbeds[pi]);
-      if (sim > bestSim) {
-        bestSim = sim;
-        bestPriorIdx = pi;
-      }
-    }
-    if (bestPriorIdx === -1 || bestSim < SIMILARITY_THRESHOLD) {
-      return { category: "new" };
-    }
-    matchedPrior.add(bestPriorIdx);
-    const priorIssue = prior[bestPriorIdx];
-    const freqDelta = (cur.frequency ?? 0) - (priorIssue.frequency ?? 0);
-    let category: IssueDiff["category"] = "persistent";
-    if (freqDelta > 0) category = "worsened";
-    else if (freqDelta < 0) category = "improved";
-    return {
-      category,
-      priorIdx: bestPriorIdx,
-      priorTitle: priorIssue.title,
-      priorFrequency: priorIssue.frequency,
-      similarity: bestSim,
-    };
-  });
-
-  const resolved: ResolvedIssue[] = [];
-  for (let pi = 0; pi < prior.length; pi++) {
-    if (matchedPrior.has(pi)) continue;
-    resolved.push({
-      priorIdx: pi,
-      title: prior[pi].title,
-      frequency: prior[pi].frequency ?? 0,
+/** Keeps prior issues that have a title; coerces the fields the diff uses. */
+function sanitizePriorIssues(list: unknown[] | undefined): Issue[] {
+  if (!list) return [];
+  const out: Issue[] = [];
+  for (const raw of list) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r.title !== "string" || !r.title.trim()) continue;
+    out.push({
+      ...(r as unknown as Issue),
+      title: r.title.slice(0, 300),
+      frequency: typeof r.frequency === "number" && Number.isFinite(r.frequency) ? r.frequency : 0,
+      evidence: Array.isArray(r.evidence)
+        ? r.evidence.filter((e): e is string => typeof e === "string").slice(0, 3).map((e) => e.slice(0, 1000))
+        : [],
     });
   }
-
-  return { perIssue, resolved, priorRunDate };
+  return out.slice(0, 100);
 }
 
-const VALID_SOURCES: Source[] = ["appstore", "reddit", "hn", "manual"];
-
-function normalizeSource(s: unknown): Source {
-  return typeof s === "string" && (VALID_SOURCES as string[]).includes(s)
-    ? (s as Source)
-    : "manual";
-}
-
-export async function POST(req: Request) {
-  try {
-    const body = (await req.json()) as {
-      complaints?: string;
-      complaintsTagged?: Array<{ text?: string; source?: string }>;
-      priorIssues?: Issue[];
-      priorRunDate?: string;
-    };
-    const { complaints, complaintsTagged, priorIssues, priorRunDate } = body;
-
-    let items: Array<{ text: string; source: Source }>;
-    if (complaintsTagged && Array.isArray(complaintsTagged) && complaintsTagged.length > 0) {
-      items = complaintsTagged
-        .map((c) => ({
-          text: typeof c.text === "string" ? c.text.trim() : "",
-          source: normalizeSource(c.source),
-        }))
-        .filter((c) => c.text.length > 0);
-    } else if (complaints && typeof complaints === "string") {
-      items = complaints
-        .split(/\n+/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0)
-        .map((text) => ({ text, source: "manual" as Source }));
-    } else {
-      return NextResponse.json({ error: "Missing complaints" }, { status: 400 });
-    }
-
-    if (items.length === 0) {
-      return NextResponse.json({ error: "No complaints found" }, { status: 400 });
-    }
-
-    const tagged = await callGeminiJson<TaggedComplaint[]>(PASS_1_PROMPT(items));
-    const issues = await callGeminiJson<Issue[]>(PASS_2_PROMPT(tagged));
-    const sorted = [...issues].sort((a, b) => (b.priority_score ?? 0) - (a.priority_score ?? 0));
-
-    let diff: AnalysisDiff | null = null;
-    if (priorIssues && priorIssues.length > 0 && priorRunDate) {
-      try {
-        diff = await computeDiff(sorted, priorIssues, priorRunDate);
-      } catch (err) {
-        console.error("Diff computation failed:", err);
-      }
-    }
-
-    return NextResponse.json({ issues: sorted, diff });
-  } catch (err) {
-    console.error("/api/analyze failed:", err);
-    return NextResponse.json({ error: "Analysis failed" }, { status: 500 });
+function toItems(body: z.infer<typeof bodySchema>): Array<{ text: string; source: Source }> {
+  if (body.complaintsTagged && body.complaintsTagged.length > 0) {
+    return body.complaintsTagged
+      .map((c) => ({ text: c.text.trim().slice(0, 4000), source: isSource(c.source) ? c.source : ("manual" as Source) }))
+      .filter((c) => c.text.length > 0);
   }
+  if (typeof body.complaints === "string") {
+    return body.complaints
+      .split(/\n+/)
+      .map((s) => s.trim().slice(0, 4000))
+      .filter((s) => s.length > 0)
+      .map((text) => ({ text, source: "manual" as Source }));
+  }
+  throw new HttpError(400, "invalid_request", "Add some complaints to analyze, one per line.");
 }
+
+/** Anonymous two-pass analysis with an optional diff against the browser's previous run. */
+export const POST = withRoute(async (req) => {
+  const body = await parseJson(req, bodySchema, { maxBytes: MAX_BYTES });
+  const items = toItems(body);
+  if (items.length === 0) {
+    throw new HttpError(400, "invalid_request", "No complaints found. Add at least one line of feedback.");
+  }
+  if (items.length > MAX_FREE_ITEMS) {
+    throw new HttpError(
+      400,
+      "invalid_request",
+      `The free analyzer takes up to ${MAX_FREE_ITEMS} complaints at a time. You sent ${items.length}.`,
+      { max: MAX_FREE_ITEMS, received: items.length },
+    );
+  }
+
+  const limited = await limitFreeTool(req, "analyze", ANALYSES_PER_DAY);
+  if (limited) return limited;
+
+  const { issues } = await analyzeItems(items.slice(0, Math.min(MAX_FREE_ITEMS, MAX_ANALYZE_ITEMS)));
+
+  let diff: AnalysisDiff | null = null;
+  const prior = sanitizePriorIssues(body.priorIssues);
+  if (prior.length > 0 && body.priorRunDate) {
+    try {
+      diff = await computeDiff(issues, prior, body.priorRunDate);
+    } catch (err) {
+      console.error("[analyze] diff computation failed", err);
+    }
+  }
+
+  return json({ issues, diff });
+});

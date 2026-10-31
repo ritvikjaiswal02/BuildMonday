@@ -1,51 +1,79 @@
 "use client";
-import type { IssueStatus } from "@/lib/types";
 
-const STATES: { value: IssueStatus; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "in_progress", label: "In Progress" },
-  { value: "shipped", label: "Shipped" },
-];
+import * as React from "react";
+import { Check, ChevronDown } from "lucide-react";
+import type { IssueWorkflowStatus } from "@/lib/db/schema";
+import { cn } from "@/lib/utils";
+import { ISSUE_STATUS_META } from "@/components/app/labels";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown";
 
-export function StatusSelector({
+const DOT: Record<IssueWorkflowStatus, string> = {
+  backlog: "bg-ink-faint",
+  in_progress: "bg-brand",
+  shipped: "bg-success",
+  ignored: "border border-ink-faint bg-transparent",
+};
+
+/**
+ * Compact status picker shared by the analyzer (three states, stored locally)
+ * and app pages (four states, saved through the API).
+ */
+export function StatusSelector<S extends IssueWorkflowStatus>({
   status,
   onChange,
+  options,
+  disabled,
+  pending,
+  className,
+  label = "Status",
 }: {
-  status: IssueStatus;
-  onChange: (s: IssueStatus) => void;
+  status: S;
+  onChange: (s: S) => void;
+  options?: S[];
+  disabled?: boolean;
+  /** Shows the trigger as busy while a save is in flight. */
+  pending?: boolean;
+  className?: string;
+  label?: string;
 }) {
-  const stylesFor = (v: IssueStatus, active: boolean) => {
-    if (!active) return "text-white/40 hover:text-white/70";
-    if (v === "backlog") return "bg-white/10 text-white/80 ring-white/15";
-    if (v === "in_progress") return "bg-blue-500/20 text-blue-200 ring-blue-500/40";
-    return "bg-emerald-500/20 text-emerald-200 ring-emerald-500/40";
-  };
-
+  const list = options ?? (["backlog", "in_progress", "shipped"] as S[]);
+  const meta = ISSUE_STATUS_META[status];
   return (
-    <div className="inline-flex items-center gap-0.5 rounded-md border border-white/10 bg-white/[0.03] p-0.5">
-      {STATES.map((s) => {
-        const active = status === s.value;
-        return (
-          <button
-            key={s.value}
-            type="button"
-            onClick={() => onChange(s.value)}
-            className={`inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium ring-1 ring-inset transition ${
-              active ? stylesFor(s.value, true) : "ring-transparent " + stylesFor(s.value, false)
-            }`}
-            title={s.label}
-          >
-            {s.value === "in_progress" && active && (
-              <span className="relative inline-flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-blue-300" />
-              </span>
-            )}
-            {s.value === "shipped" && active && <span aria-hidden>✓</span>}
-            {s.label}
-          </button>
-        );
-      })}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={disabled}
+        aria-label={`${label}: ${meta.label}. Change status`}
+        aria-busy={pending || undefined}
+        className={cn(
+          "focus-ring inline-flex h-[30px] shrink-0 items-center gap-2 rounded-md border border-line-strong bg-surface pl-2.5 pr-2 text-sm text-ink",
+          "transition-colors duration-120 hover:bg-sunken disabled:pointer-events-none disabled:opacity-50",
+          pending && "opacity-70",
+          status === "ignored" && "text-ink-muted",
+          className,
+        )}
+      >
+        <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT[status])} />
+        <span className="whitespace-nowrap">{meta.label}</span>
+        <ChevronDown aria-hidden className="size-3.5 text-ink-muted" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {list.map((value) => {
+          const m = ISSUE_STATUS_META[value];
+          const selected = value === status;
+          return (
+            <DropdownMenuItem key={value} onSelect={() => (selected ? undefined : onChange(value))}>
+              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", DOT[value])} />
+              <span className="flex-1">{m.label}</span>
+              {selected ? <Check aria-hidden className="size-4 text-brand" /> : null}
+            </DropdownMenuItem>
+          );
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

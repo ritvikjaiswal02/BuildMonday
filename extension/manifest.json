@@ -1,0 +1,56 @@
+{
+  "manifest_version": 3,
+  "name": "BuildMonday Clipper",
+  "short_name": "BuildMonday",
+  "version": "1.0.0",
+  "description": "Clip customer feedback and review pages into your BuildMonday inbox.",
+  "minimum_chrome_version": "116",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "action": {
+    "default_title": "BuildMonday",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png"
+    }
+  },
+  "options_page": "options/options.html",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "permissions": ["activeTab", "scripting", "contextMenus", "storage", "notifications"],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://play.google.com/*",
+        "https://apps.apple.com/*",
+        "https://www.reddit.com/*",
+        "https://old.reddit.com/*",
+        "https://news.ycombinator.com/*",
+        "https://www.trustpilot.com/*",
+        "https://*.trustpilot.com/*",
+        "https://www.g2.com/*",
+        "https://www.producthunt.com/*",
+        "https://x.com/*",
+        "https://twitter.com/*"
+      ],
+      "js": ["content/extract.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "clip-selection": {
+      "suggested_key": {
+        "default": "Alt+Shift+B",
+        "mac": "Alt+Shift+B"
+      },
+      "description": "Clip the selected text to BuildMonday"
+    }
+  }
+}

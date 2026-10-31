@@ -1,6 +1,20 @@
-export const DEMO_DATA: Record<"ecommerce" | "saas" | "food", { label: string; complaints: string }> = {
+/**
+ * Example complaint sets for the anonymous analyzer. They are illustrative
+ * text written for this demo, not real customer data, and the UI labels them
+ * as examples.
+ */
+export type DemoKey = "ecommerce" | "saas" | "food";
+
+export interface DemoDataset {
+  label: string;
+  description: string;
+  complaints: string;
+}
+
+export const DEMO_DATA: Record<DemoKey, DemoDataset> = {
   ecommerce: {
-    label: "E-commerce",
+    label: "Online store",
+    description: "Checkout, refunds and delivery tracking",
     complaints: [
       "Checkout keeps failing at payment step. This is the 3rd time. Switching to Amazon.",
       "Got charged twice for the same order. Support hasn't replied in 3 days.",
@@ -25,7 +39,8 @@ export const DEMO_DATA: Record<"ecommerce" | "saas" | "food", { label: string; c
     ].join("\n"),
   },
   saas: {
-    label: "SaaS Tool",
+    label: "SaaS tool",
+    description: "Performance, billing and onboarding",
     complaints: [
       "Dashboard takes 8-10 seconds to load. Unusable for daily work.",
       "CSV export is completely broken. Get an empty file every time.",
@@ -50,7 +65,8 @@ export const DEMO_DATA: Record<"ecommerce" | "saas" | "food", { label: string; c
     ].join("\n"),
   },
   food: {
-    label: "Food Delivery",
+    label: "Food delivery",
+    description: "Late orders, refunds and the app",
     complaints: [
       "Order was 45 mins late and arrived cold. Completely inedible.",
       "Wrong items delivered. Asked for vegetarian, got non-veg. Unacceptable.",
@@ -75,3 +91,5 @@ export const DEMO_DATA: Record<"ecommerce" | "saas" | "food", { label: string; c
     ].join("\n"),
   },
 };
+
+export const DEMO_KEYS = Object.keys(DEMO_DATA) as DemoKey[];

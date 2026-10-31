@@ -1,39 +1,81 @@
-import type { HistoryEntry, Issue, IssueStatus, PrdStub } from "./types";
+import type { AnalysisDiff, HistoryEntry, Issue, IssueStatus, PrdStub } from "./types";
+
+/**
+ * localStorage persistence for the anonymous analyzer at /app. Every accessor
+ * is SSR-safe and swallows storage errors (private mode, quota, blocked site
+ * data), so the analyzer works even when nothing can be saved.
+ */
 
 const KEY = "buildmonday:state";
 const STATUS_KEY = "buildmonday:statuses";
 const HISTORY_KEY = "buildmonday:history";
+const SOURCE_KEY = "buildmonday:last-source";
 const MAX_HISTORY = 10;
 
 export interface PersistedState {
   issues: Issue[];
   prdData: Record<number, PrdStub>;
+  /** Diff against the previous run, so a reload keeps the trend badges. */
+  diff?: AnalysisDiff | null;
+  /** The text that was analyzed, so "Add more complaints" can append to it after a reload. */
+  text?: string;
 }
 
-export function loadState(): PersistedState | null {
+function storage(): Storage | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as PersistedState;
+    return window.localStorage;
   } catch {
     return null;
   }
 }
 
-export function saveState(state: PersistedState) {
-  if (typeof window === "undefined") return;
+function readJson<T>(key: string): T | null {
+  const s = storage();
+  if (!s) return null;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(state));
+    const raw = s.getItem(key);
+    if (!raw) return null;
+    return JSON.parse(raw) as T;
   } catch {
-    // ignore quota errors
+    return null;
   }
 }
 
-export function clearState() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(KEY);
-  window.localStorage.removeItem(STATUS_KEY);
+function writeJson(key: string, value: unknown): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.setItem(key, JSON.stringify(value));
+  } catch {
+    // quota exceeded or storage blocked: the analyzer keeps working in memory
+  }
+}
+
+function remove(key: string): void {
+  const s = storage();
+  if (!s) return;
+  try {
+    s.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+export function loadState(): PersistedState | null {
+  const state = readJson<PersistedState>(KEY);
+  if (!state || !Array.isArray(state.issues)) return null;
+  return { ...state, prdData: state.prdData ?? {} };
+}
+
+export function saveState(state: PersistedState): void {
+  writeJson(KEY, state);
+}
+
+export function clearState(): void {
+  remove(KEY);
+  remove(STATUS_KEY);
+  remove(SOURCE_KEY);
 }
 
 export function slugify(title: string): string {
@@ -45,54 +87,50 @@ export function slugify(title: string): string {
 }
 
 export function loadStatuses(): Record<string, IssueStatus> {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(STATUS_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Record<string, IssueStatus>;
-  } catch {
-    return {};
-  }
+  const value = readJson<Record<string, IssueStatus>>(STATUS_KEY);
+  return value && typeof value === "object" ? value : {};
 }
 
-export function saveStatuses(statuses: Record<string, IssueStatus>) {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(STATUS_KEY, JSON.stringify(statuses));
-  } catch {
-    // ignore
-  }
+export function saveStatuses(statuses: Record<string, IssueStatus>): void {
+  writeJson(STATUS_KEY, statuses);
 }
 
-export function clearStatuses() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(STATUS_KEY);
+export function clearStatuses(): void {
+  remove(STATUS_KEY);
 }
 
 export function loadHistory(): HistoryEntry[] {
-  if (typeof window === "undefined") return [];
+  const parsed = readJson<HistoryEntry[]>(HISTORY_KEY);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+export function appendHistory(entry: HistoryEntry): void {
+  const next = [entry, ...loadHistory()].slice(0, MAX_HISTORY);
+  writeJson(HISTORY_KEY, next);
+}
+
+export function clearHistory(): void {
+  remove(HISTORY_KEY);
+}
+
+/** The last URL fetched in the analyzer, used by the "Watch this every day" sign-up link. */
+export function loadLastSource(): string | null {
+  const s = storage();
+  if (!s) return null;
   try {
-    const raw = window.localStorage.getItem(HISTORY_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as HistoryEntry[];
-    return Array.isArray(parsed) ? parsed : [];
+    return s.getItem(SOURCE_KEY);
   } catch {
-    return [];
+    return null;
   }
 }
 
-export function appendHistory(entry: HistoryEntry) {
-  if (typeof window === "undefined") return;
+export function saveLastSource(url: string | null): void {
+  const s = storage();
+  if (!s) return;
   try {
-    const existing = loadHistory();
-    const next = [entry, ...existing].slice(0, MAX_HISTORY);
-    window.localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+    if (url) s.setItem(SOURCE_KEY, url);
+    else s.removeItem(SOURCE_KEY);
   } catch {
-    // ignore quota errors
+    // ignore
   }
-}
-
-export function clearHistory() {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(HISTORY_KEY);
 }

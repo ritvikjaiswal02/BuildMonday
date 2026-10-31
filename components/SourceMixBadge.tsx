@@ -1,48 +1,33 @@
-import type { Source, SourceMix } from "@/lib/types";
+import { SourceGlyph } from "@/components/brand/logos";
+import { SOURCE_LABELS, isSource, type SourceMix } from "@/lib/types";
+import { sourceMixEntries } from "@/components/app/adapters";
+import { cn } from "@/lib/utils";
 
-const labels: Record<Source, string> = {
-  appstore: "App Store",
-  reddit: "Reddit",
-  hn: "HN",
-  manual: "Pasted",
-};
-
-const colors: Record<Source, string> = {
-  appstore: "bg-sky-500/15 text-sky-300 ring-sky-500/30",
-  reddit: "bg-orange-500/15 text-orange-300 ring-orange-500/30",
-  hn: "bg-amber-500/15 text-amber-300 ring-amber-500/30",
-  manual: "bg-white/10 text-white/60 ring-white/20",
-};
-
-const order: Source[] = ["appstore", "reddit", "hn", "manual"];
-
-const pill =
-  "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ring-inset";
-
-export function SourceMixBadge({ mix }: { mix: SourceMix }) {
-  const entries = order
-    .map((s) => [s, mix[s] ?? 0] as const)
-    .filter(([, n]) => n > 0);
+/**
+ * Where an issue's reports came from, as glyph and count chips. Used in
+ * analyzer rows; the issue page uses the fuller SourceMixBar.
+ */
+export function SourceMixBadge({ mix, className }: { mix: SourceMix; className?: string }) {
+  const entries = sourceMixEntries(mix);
   if (entries.length === 0) return null;
-  if (entries.length === 1) {
-    const [s, n] = entries[0];
-    return (
-      <span className={`${pill} ${colors[s]}`} title={`${n} complaint${n === 1 ? "" : "s"} from ${labels[s]}`}>
-        {labels[s]} · {n}
-      </span>
-    );
-  }
   return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      {entries.map(([s, n]) => (
-        <span
-          key={s}
-          className={`${pill} ${colors[s]}`}
-          title={`${n} complaint${n === 1 ? "" : "s"} from ${labels[s]}`}
-        >
-          {labels[s]} · {n}
-        </span>
-      ))}
-    </span>
+    <ul className={cn("flex flex-wrap items-center gap-1.5", className)} aria-label="Reports by source">
+      {entries.map(({ kind, count }) => {
+        const label = isSource(kind) ? SOURCE_LABELS[kind] : kind;
+        return (
+          <li
+            key={kind}
+            className="inline-flex h-6 items-center gap-1.5 rounded border border-line bg-surface px-1.5 text-xs text-ink-secondary"
+          >
+            <SourceGlyph kind={kind} className="size-3.5 text-ink-muted" />
+            <span className="sr-only">{label}:</span>
+            <span aria-hidden className="hidden sm:inline">
+              {label}
+            </span>
+            <span className="tabular-nums text-ink">{count}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
