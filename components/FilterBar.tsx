@@ -1,83 +1,30 @@
 "use client";
+
+import * as React from "react";
+import { ChevronDown, X } from "lucide-react";
 import type { Action, IssueStatus, Source } from "@/lib/types";
+import { SOURCES, SOURCE_LABELS } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import { ACTION_META, ISSUE_STATUS_META } from "@/components/app/labels";
+import type { SortMode } from "@/components/app/analyzer";
+import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown";
 
-export type SortMode = "priority" | "frequency" | "severity";
+export type { SortMode } from "@/components/app/analyzer";
 
-const pillBase =
-  "inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset transition";
+const ACTIONS: Action[] = ["fix_now", "investigate", "monitor"];
+const STATUSES: IssueStatus[] = ["backlog", "in_progress", "shipped"];
 
-function actionLabel(a: Action): string {
-  if (a === "fix_now") return "Fix Now";
-  if (a === "investigate") return "Investigate";
-  return "Monitor";
-}
-
-function actionColor(a: Action, active: boolean): string {
-  if (a === "fix_now") {
-    return active
-      ? "bg-red-500/25 text-red-100 ring-red-500/50"
-      : "bg-red-500/10 text-red-300/80 ring-red-500/25 hover:bg-red-500/15";
-  }
-  if (a === "investigate") {
-    return active
-      ? "bg-amber-500/25 text-amber-100 ring-amber-500/50"
-      : "bg-amber-500/10 text-amber-300/80 ring-amber-500/25 hover:bg-amber-500/15";
-  }
-  return active
-    ? "bg-white/15 text-white ring-white/30"
-    : "bg-white/5 text-white/60 ring-white/15 hover:bg-white/10";
-}
-
-function statusLabel(s: IssueStatus): string {
-  if (s === "in_progress") return "In progress";
-  if (s === "shipped") return "Shipped";
-  return "Backlog";
-}
-
-function sourceLabel(s: Source): string {
-  if (s === "appstore") return "App Store";
-  if (s === "reddit") return "Reddit";
-  if (s === "hn") return "HN";
-  return "Pasted";
-}
-
-function sourceColor(s: Source, active: boolean): string {
-  if (s === "appstore") {
-    return active
-      ? "bg-sky-500/25 text-sky-100 ring-sky-500/50"
-      : "bg-sky-500/10 text-sky-300/80 ring-sky-500/25 hover:bg-sky-500/15";
-  }
-  if (s === "reddit") {
-    return active
-      ? "bg-orange-500/25 text-orange-100 ring-orange-500/50"
-      : "bg-orange-500/10 text-orange-300/80 ring-orange-500/25 hover:bg-orange-500/15";
-  }
-  if (s === "hn") {
-    return active
-      ? "bg-amber-500/25 text-amber-100 ring-amber-500/50"
-      : "bg-amber-500/10 text-amber-300/80 ring-amber-500/25 hover:bg-amber-500/15";
-  }
-  return active
-    ? "bg-white/15 text-white ring-white/30"
-    : "bg-white/5 text-white/60 ring-white/15 hover:bg-white/10";
-}
-
-function statusColor(s: IssueStatus, active: boolean): string {
-  if (s === "in_progress") {
-    return active
-      ? "bg-blue-500/25 text-blue-100 ring-blue-500/50"
-      : "bg-blue-500/10 text-blue-300/80 ring-blue-500/25 hover:bg-blue-500/15";
-  }
-  if (s === "shipped") {
-    return active
-      ? "bg-emerald-500/25 text-emerald-100 ring-emerald-500/50"
-      : "bg-emerald-500/10 text-emerald-300/80 ring-emerald-500/25 hover:bg-emerald-500/15";
-  }
-  return active
-    ? "bg-white/15 text-white ring-white/30"
-    : "bg-white/5 text-white/60 ring-white/15 hover:bg-white/10";
-}
-
+/**
+ * Filters for the analyzer's ranked list: multi-select menus for action,
+ * status and source, a sort select and a clear button.
+ */
 export function FilterBar({
   actionCounts,
   statusCounts,
@@ -96,7 +43,7 @@ export function FilterBar({
 }: {
   actionCounts: Record<Action, number>;
   statusCounts: Record<IssueStatus, number>;
-  sourceCounts: Record<Source, number>;
+  sourceCounts: Partial<Record<Source, number>>;
   filterActions: Set<Action>;
   filterStatuses: Set<IssueStatus>;
   filterSources: Set<Source>;
@@ -109,116 +56,108 @@ export function FilterBar({
   totalVisible: number;
   totalIssues: number;
 }) {
-  const actions: Action[] = ["fix_now", "investigate", "monitor"];
-  const statuses: IssueStatus[] = ["backlog", "in_progress", "shipped"];
-  const sources: Source[] = ["appstore", "reddit", "hn", "manual"];
-  const visibleSources = sources.filter((s) => (sourceCounts[s] ?? 0) > 0 || filterSources.has(s));
-  const hasFilters =
-    filterActions.size > 0 || filterStatuses.size > 0 || filterSources.size > 0;
+  const visibleSources = SOURCES.filter((s) => (sourceCounts[s] ?? 0) > 0 || filterSources.has(s));
+  const hasFilters = filterActions.size > 0 || filterStatuses.size > 0 || filterSources.size > 0;
+  const sortId = React.useId();
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-white/10 bg-[#0e0e10] px-4 py-3">
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-          Action
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter issues">
+        <FilterMenu
+          label="Action"
+          selected={filterActions}
+          options={ACTIONS.map((a) => ({ value: a, label: ACTION_META[a].label, count: actionCounts[a] ?? 0 }))}
+          onToggle={onToggleAction}
+        />
+        <FilterMenu
+          label="Status"
+          selected={filterStatuses}
+          options={STATUSES.map((s) => ({ value: s, label: ISSUE_STATUS_META[s].label, count: statusCounts[s] ?? 0 }))}
+          onToggle={onToggleStatus}
+        />
+        {visibleSources.length > 1 || filterSources.size > 0 ? (
+          <FilterMenu
+            label="Source"
+            selected={filterSources}
+            options={visibleSources.map((s) => ({ value: s, label: SOURCE_LABELS[s], count: sourceCounts[s] ?? 0 }))}
+            onToggle={onToggleSource}
+          />
+        ) : null}
+        {hasFilters ? (
+          <Button variant="ghost" size="sm" leftIcon={<X aria-hidden />} onClick={onClear}>
+            Clear filters
+          </Button>
+        ) : null}
+        <span aria-live="polite" className={cn("text-sm text-ink-muted", !hasFilters && "sr-only")}>
+          Showing {totalVisible} of {totalIssues}
         </span>
-        {actions.map((a) => {
-          const active = filterActions.has(a);
-          const count = actionCounts[a] ?? 0;
-          return (
-            <button
-              key={a}
-              onClick={() => onToggleAction(a)}
-              disabled={count === 0 && !active}
-              className={`${pillBase} ${actionColor(a, active)} disabled:cursor-not-allowed disabled:opacity-30`}
-            >
-              {actionLabel(a)} <span className="text-[10px] opacity-70">{count}</span>
-            </button>
-          );
-        })}
       </div>
 
-      <span className="hidden text-white/15 sm:inline">|</span>
-
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-          Status
-        </span>
-        {statuses.map((s) => {
-          const active = filterStatuses.has(s);
-          const count = statusCounts[s] ?? 0;
-          return (
-            <button
-              key={s}
-              onClick={() => onToggleStatus(s)}
-              disabled={count === 0 && !active}
-              className={`${pillBase} ${statusColor(s, active)} disabled:cursor-not-allowed disabled:opacity-30`}
-            >
-              {statusLabel(s)} <span className="text-[10px] opacity-70">{count}</span>
-            </button>
-          );
-        })}
-      </div>
-
-      {visibleSources.length > 0 && (
-        <>
-          <span className="hidden text-white/15 sm:inline">|</span>
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-white/40">
-              Source
-            </span>
-            {visibleSources.map((s) => {
-              const active = filterSources.has(s);
-              const count = sourceCounts[s] ?? 0;
-              return (
-                <button
-                  key={s}
-                  onClick={() => onToggleSource(s)}
-                  disabled={count === 0 && !active}
-                  className={`${pillBase} ${sourceColor(s, active)} disabled:cursor-not-allowed disabled:opacity-30`}
-                >
-                  {sourceLabel(s)} <span className="text-[10px] opacity-70">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        </>
-      )}
-
-      <div className="ml-auto flex items-center gap-2">
-        <label className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
-          Sort
+      <div className="flex items-center gap-2">
+        <label htmlFor={sortId} className="text-sm text-ink-muted">
+          Sort by
         </label>
-        <select
+        <Select
+          id={sortId}
           value={sortMode}
           onChange={(e) => onSortChange(e.target.value as SortMode)}
-          className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/90 outline-none transition hover:bg-white/10 focus:border-indigo-400/60"
+          className="w-[140px]"
         >
-          <option value="priority" className="bg-[#161618]">
-            Priority
-          </option>
-          <option value="frequency" className="bg-[#161618]">
-            Frequency
-          </option>
-          <option value="severity" className="bg-[#161618]">
-            Severity
-          </option>
-        </select>
-        {hasFilters && (
-          <button
-            onClick={onClear}
-            className="rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-white/70 transition hover:bg-white/10"
-          >
-            Clear
-          </button>
-        )}
+          <option value="priority">Priority</option>
+          <option value="frequency">Reports</option>
+          <option value="severity">Severity</option>
+        </Select>
       </div>
-
-      {hasFilters && (
-        <div className="w-full text-[11px] text-white/40">
-          Showing <span className="font-semibold text-white/70">{totalVisible}</span> of {totalIssues} clusters
-        </div>
-      )}
     </div>
+  );
+}
+
+function FilterMenu<T extends string>({
+  label,
+  options,
+  selected,
+  onToggle,
+}: {
+  label: string;
+  options: Array<{ value: T; label: string; count: number }>;
+  selected: Set<T>;
+  onToggle: (value: T) => void;
+}) {
+  const active = selected.size;
+  const summary =
+    active === 0
+      ? null
+      : active === 1
+        ? options.find((o) => selected.has(o.value))?.label
+        : `${active} selected`;
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        className={cn(
+          "focus-ring inline-flex h-[30px] items-center gap-1.5 rounded-md border px-2.5 text-sm transition-colors duration-120",
+          active > 0
+            ? "border-brand/40 bg-brand-soft text-brand-ink"
+            : "border-line-strong bg-surface text-ink-secondary hover:bg-sunken hover:text-ink",
+        )}
+      >
+        <span>{label}</span>
+        {summary ? <span className="font-medium">: {summary}</span> : null}
+        <ChevronDown aria-hidden className="size-3.5 opacity-70" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[200px]">
+        {options.map((o) => (
+          <DropdownMenuCheckboxItem
+            key={o.value}
+            checked={selected.has(o.value)}
+            disabled={o.count === 0 && !selected.has(o.value)}
+            onCheckedChange={() => onToggle(o.value)}
+            onSelect={(e) => e.preventDefault()}
+          >
+            <span className="flex-1">{o.label}</span>
+            <span className="ml-3 text-xs tabular-nums text-ink-muted">{o.count}</span>
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

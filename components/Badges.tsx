@@ -1,71 +1,153 @@
+import * as React from "react";
+import { ArrowDownRight, ArrowUpRight, CheckCircle2, CircleDot, Minus, Plus, type LucideIcon } from "lucide-react";
+import type { FeedbackStatus, IssueTrend, IssueWorkflowStatus, RunStatus } from "@/lib/db/schema";
 import type { Action, ChurnRisk, Effort, Severity } from "@/lib/types";
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { RankNumber } from "@/components/ui/week-strip";
+import { Spinner } from "@/components/ui/spinner";
+import { cn, pluralize } from "@/lib/utils";
+import {
+  ACTION_META,
+  EFFORT_META,
+  FEEDBACK_STATUS_META,
+  ISSUE_STATUS_META,
+  LEVEL_TONE,
+  RUN_STATUS_META,
+  TREND_META,
+} from "@/components/app/labels";
 
-const base =
-  "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset";
+/**
+ * Status vocabulary as badges. Every badge carries a word, so colour is never
+ * the only signal (BUILD_CONTRACTS 8.2).
+ */
 
-export function SeverityBadge({ value }: { value: Severity }) {
-  const cls =
-    value === "High"
-      ? "bg-red-500/15 text-red-300 ring-red-500/30"
-      : value === "Medium"
-      ? "bg-yellow-500/15 text-yellow-300 ring-yellow-500/30"
-      : "bg-green-500/15 text-green-300 ring-green-500/30";
-  return <span className={`${base} ${cls}`}>Severity: {value}</span>;
-}
+type Size = BadgeProps["size"];
 
-export function ChurnBadge({ value }: { value: ChurnRisk }) {
-  const cls =
-    value === "High"
-      ? "bg-red-500/10 text-red-300 ring-red-500/25"
-      : value === "Medium"
-      ? "bg-amber-500/10 text-amber-300 ring-amber-500/25"
-      : "bg-white/5 text-white/70 ring-white/15";
+export function ActionBadge({ value, size }: { value: Action; size?: Size }) {
+  const meta = ACTION_META[value];
   return (
-    <span
-      className={`${base} ${cls} cursor-help`}
-      title="Estimated from cancellation and switching intent language in complaints"
-    >
-      Churn: {value}
-    </span>
+    <Badge tone={meta.tone} size={size} dot title={meta.description}>
+      {meta.label}
+    </Badge>
   );
 }
 
-export function EffortBadge({ value }: { value: Effort }) {
-  const label = value === "S" ? "S · 1-2 days" : value === "M" ? "M · ~1 week" : "L · multi-sprint";
-  return <span className={`${base} bg-white/5 text-white/80 ring-white/15`}>Effort: {label}</span>;
-}
-
-export function FrequencyBadge({ value }: { value: number }) {
+export function SeverityBadge({ value, size, compact }: { value: Severity; size?: Size; compact?: boolean }) {
   return (
-    <span className={`${base} bg-indigo-500/15 text-indigo-300 ring-indigo-500/30`}>
-      {value} reports
-    </span>
+    <Badge tone={LEVEL_TONE[value]} variant="outline" size={size} title={`Severity: ${value}`}>
+      {compact ? value : `Severity ${value.toLowerCase()}`}
+    </Badge>
   );
 }
 
-export function ActionBadge({ value }: { value: Action }) {
-  const cls =
-    value === "fix_now"
-      ? "bg-red-500/20 text-red-200 ring-red-500/40"
-      : value === "investigate"
-      ? "bg-amber-500/20 text-amber-200 ring-amber-500/40"
-      : "bg-white/10 text-white/70 ring-white/20";
-  const label = value === "fix_now" ? "Fix Now" : value === "investigate" ? "Investigate" : "Monitor";
-  return <span className={`${base} ${cls}`}>{label}</span>;
+export function ChurnBadge({ value, size }: { value: ChurnRisk; size?: Size }) {
+  return (
+    <Badge
+      tone={LEVEL_TONE[value]}
+      variant="outline"
+      size={size}
+      title="Estimated from cancellation and switching language in the feedback"
+    >
+      Churn risk {value.toLowerCase()}
+    </Badge>
+  );
 }
 
-export function RankBadge({ rank, action }: { rank: number; action: Action }) {
-  const cls =
-    action === "fix_now"
-      ? "bg-red-500/20 text-red-200 ring-red-500/40"
-      : action === "investigate"
-      ? "bg-amber-500/20 text-amber-200 ring-amber-500/40"
-      : "bg-white/10 text-white/60 ring-white/20";
+export function EffortBadge({ value, size }: { value: Effort; size?: Size }) {
+  const meta = EFFORT_META[value];
   return (
-    <span
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg text-sm font-bold ring-1 ring-inset ${cls}`}
-    >
-      #{rank}
-    </span>
+    <Badge tone="neutral" variant="outline" size={size} title={`Effort: ${meta.label}`}>
+      Effort {meta.short}
+    </Badge>
+  );
+}
+
+export function FrequencyBadge({ value, size }: { value: number; size?: Size }) {
+  return (
+    <Badge tone="neutral" size={size} className="tabular-nums">
+      {pluralize(value, "report")}
+    </Badge>
+  );
+}
+
+/** Rank cell in the display face. `action` is accepted for older call sites and not used for colour. */
+export function RankBadge({ rank, className }: { rank: number; action?: Action; className?: string }) {
+  return <RankNumber rank={rank} className={className} />;
+}
+
+const TREND_ICON: Record<IssueTrend, LucideIcon> = {
+  new: Plus,
+  worsened: ArrowUpRight,
+  improved: ArrowDownRight,
+  resolved: CheckCircle2,
+  persistent: Minus,
+};
+
+export function TrendBadge({
+  trend,
+  size,
+  hidePersistent = false,
+  delta,
+}: {
+  trend: IssueTrend;
+  size?: Size;
+  /** Ongoing issues are the default state and often not worth a badge. */
+  hidePersistent?: boolean;
+  /** Optional change in reports, shown after the label: "+4". */
+  delta?: number | null;
+}) {
+  if (hidePersistent && trend === "persistent") return null;
+  const meta = TREND_META[trend];
+  const Icon = TREND_ICON[trend];
+  return (
+    <Badge tone={meta.tone} variant={meta.variant ?? "soft"} size={size} title={meta.description}>
+      <Icon aria-hidden className="size-3 shrink-0" />
+      {meta.label}
+      {typeof delta === "number" && delta !== 0 ? (
+        <span className="tabular-nums">{delta > 0 ? `+${delta}` : `${delta}`}</span>
+      ) : null}
+    </Badge>
+  );
+}
+
+export function IssueStatusBadge({ status, size }: { status: IssueWorkflowStatus; size?: Size }) {
+  const meta = ISSUE_STATUS_META[status];
+  return (
+    <Badge tone={meta.tone} variant={meta.variant ?? "soft"} size={size} dot>
+      {meta.label}
+    </Badge>
+  );
+}
+
+export function RunStatusBadge({ status, size }: { status: RunStatus; size?: Size }) {
+  const meta = RUN_STATUS_META[status];
+  return (
+    <Badge tone={meta.tone} size={size}>
+      {status === "running" ? (
+        <Spinner size="sm" className="size-3" />
+      ) : status === "queued" ? (
+        <CircleDot aria-hidden className="size-3 motion-safe:animate-pulse-dot" />
+      ) : (
+        <span
+          aria-hidden
+          className={cn(
+            "size-1.5 rounded-full",
+            status === "succeeded" && "bg-success",
+            status === "failed" && "bg-danger",
+            status === "skipped" && "bg-ink-faint",
+          )}
+        />
+      )}
+      {meta.label}
+    </Badge>
+  );
+}
+
+export function FeedbackStatusBadge({ status, size }: { status: FeedbackStatus; size?: Size }) {
+  const meta = FEEDBACK_STATUS_META[status];
+  return (
+    <Badge tone={meta.tone} size={size}>
+      {meta.label}
+    </Badge>
   );
 }

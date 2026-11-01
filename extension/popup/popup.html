@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BuildMonday</title>
+    <link rel="stylesheet" href="../ui/base.css" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <symbol id="i-settings" viewBox="0 0 24 24">
+        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+        <circle cx="12" cy="12" r="3" />
+      </symbol>
+      <symbol id="i-inbox" viewBox="0 0 24 24">
+        <polyline points="22 12 16 12 14 15 10 15 8 12 2 12" />
+        <path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z" />
+      </symbol>
+      <symbol id="i-scissors" viewBox="0 0 24 24">
+        <circle cx="6" cy="6" r="3" />
+        <path d="M8.12 8.12 12 12" />
+        <path d="M20 4 8.12 15.88" />
+        <circle cx="6" cy="18" r="3" />
+        <path d="M14.8 14.8 20 20" />
+      </symbol>
+      <symbol id="i-check" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <path d="m9 12 2 2 4-4" />
+      </symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" />
+        <line x1="12" x2="12" y1="8" y2="12" />
+        <line x1="12" x2="12.01" y1="16" y2="16" />
+      </symbol>
+      <symbol id="i-pointer" viewBox="0 0 24 24">
+        <path d="M14 4.1 12 6" />
+        <path d="m5.1 8-2.9-.8" />
+        <path d="m6 12-1.9 2" />
+        <path d="M7.2 2.2 8 5.1" />
+        <path d="M9.04 9.69a.5.5 0 0 1 .65-.65l11 4.5a.5.5 0 0 1-.07.95l-4.35 1.04a1 1 0 0 0-.74.74l-1.04 4.35a.5.5 0 0 1-.95.07z" />
+      </symbol>
+      <symbol id="i-plug" viewBox="0 0 24 24">
+        <path d="M12 22v-5" />
+        <path d="M9 8V2" />
+        <path d="M15 8V2" />
+        <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" />
+      </symbol>
+      <symbol id="i-external" viewBox="0 0 24 24">
+        <path d="M15 3h6v6" />
+        <path d="M10 14 21 3" />
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+      </symbol>
+    </svg>
+
+    <header class="top">
+      <span class="brand-row"><img src="../icons/icon32.png" alt="" />BuildMonday</span>
+      <button id="open-options" type="button" class="btn btn-ghost btn-icon" aria-label="Extension settings" title="Settings">
+        <svg class="icon" aria-hidden="true"><use href="#i-settings" /></svg>
+      </button>
+    </header>
+
+    <main>
+      <section id="view-loading" class="skeleton" aria-busy="true" aria-label="Loading">
+        <span class="bar w-40"></span>
+        <span class="bar h-36"></span>
+        <span class="bar h-96"></span>
+      </section>
+
+      <section id="view-connect" class="stack" hidden>
+        <div class="intro-icon"><svg class="icon" aria-hidden="true"><use href="#i-plug" /></svg></div>
+        <h1 class="title">Connect to BuildMonday</h1>
+        <p class="muted">
+          Clip reviews and feedback from any page into your inbox. Create a token in BuildMonday under Extension and widget, then paste it in the extension settings.
+        </p>
+        <div class="stack-sm">
+          <button id="connect-open" type="button" class="btn btn-primary btn-block">Open settings</button>
+          <a id="connect-create" class="btn btn-block" target="_blank" rel="noopener">
+            Create a token
+            <svg class="icon" aria-hidden="true"><use href="#i-external" /></svg>
+          </a>
+        </div>
+      </section>
+
+      <section id="view-error" class="stack" hidden>
+        <div class="callout danger" role="alert">
+          <svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg>
+          <div>
+            <p class="callout-title" id="error-title">Could not load your account</p>
+            <p id="error-text"></p>
+          </div>
+        </div>
+        <div class="row">
+          <button id="error-retry" type="button" class="btn btn-primary">Try again</button>
+          <button id="error-options" type="button" class="btn">Open settings</button>
+        </div>
+      </section>
+
+      <section id="view-main" class="stack" hidden>
+        <div class="account">
+          <span id="ws-name" class="ws"></span>
+          <span id="ws-plan" class="pill"></span>
+        </div>
+
+        <div class="field">
+          <label for="product" class="label">Save to</label>
+          <select id="product" class="select"></select>
+        </div>
+
+        <div class="card" id="page-card">
+          <div class="card-head">
+            <span class="site" id="site-label">This page</span>
+            <span class="host" id="page-host"></span>
+          </div>
+
+          <div id="reviews-block" class="card-body" hidden>
+            <p class="count"><strong id="review-count">0</strong> <span id="review-noun">reviews</span> found on this page</p>
+            <label class="check" id="lowstar-row">
+              <input type="checkbox" id="lowstar" />
+              <span>Only 1 to 3 star reviews <span id="lowstar-count" class="muted"></span></span>
+            </label>
+            <ul id="preview" class="preview" aria-label="First reviews on this page"></ul>
+            <button id="capture" type="button" class="btn btn-primary btn-block">
+              <svg class="icon" aria-hidden="true"><use href="#i-inbox" /></svg>
+              <span class="btn-label" id="capture-label">Capture reviews</span>
+            </button>
+          </div>
+
+          <div id="selection-block" class="card-body" hidden>
+            <p class="eyebrow">Selected text</p>
+            <blockquote id="selection-text" class="quote"></blockquote>
+            <button id="clip" type="button" class="btn btn-block">
+              <svg class="icon" aria-hidden="true"><use href="#i-scissors" /></svg>
+              <span class="btn-label">Clip selection</span>
+            </button>
+          </div>
+
+          <div id="empty-block" class="card-body empty" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-pointer" /></svg>
+            <div>
+              <p>Select some text on the page, or open a review page on one of the supported sites.</p>
+              <p class="hint">Google Play, App Store, Reddit, Hacker News, Trustpilot, G2, Product Hunt and X.</p>
+            </div>
+          </div>
+
+          <div id="restricted-block" class="card-body empty" hidden>
+            <svg class="icon" aria-hidden="true"><use href="#i-alert" /></svg>
+            <p>The extension cannot read this page. Open a website and try again.</p>
+          </div>
+        </div>
+
+        <div id="status" role="status" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <footer class="foot" id="foot" hidden>
+      <span id="usage" class="hint"></span>
+      <a id="open-inbox" target="_blank" rel="noopener">Open inbox</a>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
